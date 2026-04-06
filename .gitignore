@@ -1,0 +1,30 @@
+# Binaries
+bin/
+*.exe
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+deploy/config/.env
+deploy/config/pr-scout.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go
+coverage.out
+coverage.html
+
+# Dashboard
+web/dashboard/node_modules/
+web/dashboard/dist/
+
+# OS
+.DS_Store
+Thumbs.db

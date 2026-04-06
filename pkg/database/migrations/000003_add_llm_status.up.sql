@@ -1,0 +1,2 @@
+ALTER TABLE tracked_prs ADD COLUMN llm_status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE tracked_prs ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;
