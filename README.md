@@ -101,6 +101,10 @@ React Dashboard (Vite, :5173)
     └── types/      — TypeScript interfaces
 ```
 
+For the full architecture with diagrams and data-flow sequences, see [Architecture](docs/architecture.md).
+
+For an in-depth look at the scan pipeline, AI integration, review tracking, database design, and deployment model, see [Technical Details](docs/technical-details.md).
+
 ## Development
 
 ```bash
