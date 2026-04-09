@@ -9,13 +9,27 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
+import Tooltip from '@mui/material/Tooltip';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import RadarIcon from '@mui/icons-material/Radar';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import { DigestCards } from '../components/digest/DigestCards.tsx';
 import { PRList } from '../components/pr/PRList.tsx';
 import { PRFilters } from '../components/pr/PRFilters.tsx';
+import { BoardView } from '../components/board/BoardView.tsx';
+import { useBoardColumns } from '../hooks/useBoardColumns.ts';
 import { fetchDigest, fetchPRs, triggerScan } from '../services/api.ts';
 import type { Digest, PRWithReview } from '../types';
+
+type ViewMode = 'list' | 'board';
+
+function getInitialViewMode(): ViewMode {
+  const stored = localStorage.getItem('pr-scout-view-mode');
+  return stored === 'board' ? 'board' : 'list';
+}
 
 export function DashboardPage() {
   const [digest, setDigest] = useState<Digest | null>(null);
@@ -25,6 +39,7 @@ export function DashboardPage() {
   const [scanning, setScanning] = useState(false);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [tab, setTab] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode);
 
   // Filters
   const [repoFilter, setRepoFilter] = useState('');
@@ -34,8 +49,23 @@ export function DashboardPage() {
   const [newOnly, setNewOnly] = useState(false);
   const [repos, setRepos] = useState<string[]>([]);
 
-  const myPrs = useMemo(() => prs.filter((p) => p.is_my_pr), [prs]);
-  const displayedPrs = tab === 0 ? prs : myPrs;
+  const isBoardMode = viewMode === 'board' && tab === 0;
+
+  const openPrs = useMemo(() => prs.filter((p) => p.state !== 'merged'), [prs]);
+  const myPrs = useMemo(() => openPrs.filter((p) => p.is_my_pr), [openPrs]);
+  const reviewPrs = useMemo(() => prs.filter((p) => !p.is_my_pr), [prs]);
+  const displayedPrs = tab === 0 ? openPrs : myPrs;
+
+  const columns = useBoardColumns(isBoardMode ? reviewPrs : []);
+
+  const handleViewModeChange = (_: unknown, newMode: ViewMode | null) => {
+    if (!newMode) return;
+    setViewMode(newMode);
+    localStorage.setItem('pr-scout-view-mode', newMode);
+    if (newMode === 'board') {
+      setReviewStatusFilter('');
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -45,7 +75,7 @@ export function DashboardPage() {
         fetchDigest(),
         fetchPRs({
           ...(repoFilter && { repo: repoFilter }),
-          ...(reviewStatusFilter && { my_review_status: reviewStatusFilter }),
+          ...(!isBoardMode && reviewStatusFilter && { my_review_status: reviewStatusFilter }),
           ...(ciStatusFilter && { ci_status: ciStatusFilter }),
           ...(coderabbitStatusFilter && { coderabbit_status: coderabbitStatusFilter }),
           ...(newOnly && { is_new: 'true' }),
@@ -55,7 +85,6 @@ export function DashboardPage() {
       setDigest(digestData);
       setPrs(prData.items || []);
 
-      // Extract unique repos for filter dropdown
       const uniqueRepos = [...new Set((prData.items || []).map((p: PRWithReview) => p.repo))].sort();
       setRepos((prev) => {
         if (uniqueRepos.length > prev.length) return uniqueRepos;
@@ -66,7 +95,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [repoFilter, reviewStatusFilter, ciStatusFilter, coderabbitStatusFilter, newOnly]);
+  }, [repoFilter, reviewStatusFilter, ciStatusFilter, coderabbitStatusFilter, newOnly, isBoardMode]);
 
   useEffect(() => {
     loadData();
@@ -91,8 +120,10 @@ export function DashboardPage() {
     }
   };
 
+  const shownCount = isBoardMode ? reviewPrs.length : displayedPrs.length;
+
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
       <AppBar position="static" color="default" elevation={1}>
         <Toolbar>
           <RadarIcon sx={{ mr: 1 }} />
@@ -111,17 +142,50 @@ export function DashboardPage() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 2 }}>
+      <Container
+        maxWidth={isBoardMode ? 'xl' : 'lg'}
+        sx={{
+          mt: 2,
+          flex: 1,
+          overflow: isBoardMode ? 'hidden' : 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <DigestCards digest={digest} />
 
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 36 }}>
-            <Tab label={`All PRs (${prs.length})`} sx={{ minHeight: 36, py: 0 }} />
+            <Tab
+              label={isBoardMode ? `Review Board (${reviewPrs.length})` : `All PRs (${openPrs.length})`}
+              sx={{ minHeight: 36, py: 0 }}
+            />
             <Tab label={`My PRs (${myPrs.length})`} sx={{ minHeight: 36, py: 0 }} />
           </Tabs>
-          <Typography variant="body2" color="text.secondary">
-            {displayedPrs.length} shown
-          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={handleViewModeChange}
+              size="small"
+              sx={{ height: 30 }}
+            >
+              <ToggleButton value="list" sx={{ px: 1 }}>
+                <ViewListIcon sx={{ fontSize: 18 }} />
+              </ToggleButton>
+              <Tooltip title={tab !== 0 ? 'Board view available for All PRs' : ''}>
+                <span>
+                  <ToggleButton value="board" sx={{ px: 1 }} disabled={tab !== 0}>
+                    <DashboardIcon sx={{ fontSize: 18 }} />
+                  </ToggleButton>
+                </span>
+              </Tooltip>
+            </ToggleButtonGroup>
+            <Typography variant="body2" color="text.secondary">
+              {shownCount} shown
+            </Typography>
+          </Box>
         </Box>
 
         <PRFilters
@@ -136,9 +200,14 @@ export function DashboardPage() {
           newOnly={newOnly}
           onNewOnlyChange={setNewOnly}
           repos={repos}
+          viewMode={isBoardMode ? 'board' : 'list'}
         />
 
-        <PRList prs={displayedPrs} loading={loading} error={error} />
+        {isBoardMode ? (
+          <BoardView columns={columns} loading={loading} />
+        ) : (
+          <PRList prs={displayedPrs} loading={loading} error={error} />
+        )}
       </Container>
 
       <Snackbar
@@ -153,6 +222,6 @@ export function DashboardPage() {
           </Alert>
         ) : undefined}
       </Snackbar>
-    </>
+    </Box>
   );
 }

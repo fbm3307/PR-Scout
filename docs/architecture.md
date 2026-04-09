@@ -35,9 +35,11 @@ flowchart TB
     end
 
     subgraph Dashboard["React Dashboard — Vite · :5173"]
-        DASH_PAGE["Dashboard Page<br/>Digest cards + PR list"]
+        DASH_PAGE["Dashboard Page<br/>Digest cards + PR list<br/>+ Kanban board"]
+        BOARD["Kanban Board<br/>Not Reviewed · Needs Attention<br/>Waiting · Approved · Recently Merged"]
         DETAIL_PAGE["PR Detail Page<br/>AI summary · Comments<br/>Review status"]
         API_CLIENT["Axios API Client<br/>→ /api/v1/*"]
+        DASH_PAGE --> BOARD
     end
 
     CRON -->|"POST /api/v1/scan"| API
@@ -91,7 +93,7 @@ sequenceDiagram
     User->>API: POST /api/v1/scan
     API->>Scan: RunScan()
 
-    rect rgb(219, 234, 254)
+    rect rgb(147, 197, 253)
         Note over Scan,GH: Parallel repo scanning (up to 5 concurrent)
         Scan->>Scanner: ScanRepo (per repo)
         Scanner->>GH: List open PRs
@@ -103,7 +105,17 @@ sequenceDiagram
 
     Scanner-->>Scan: []TrackedPR + ReviewComments
 
-    rect rgb(209, 250, 229)
+    rect rgb(253, 224, 137)
+        Note over Scan,GH: Recently merged PRs (last 7 days)
+        Scan->>Scanner: ScanMergedRepo (per repo)
+        Scanner->>GH: List closed PRs (merged_at > 7 days ago)
+        Scanner->>GH: Fetch reviews (lightweight)
+        GH-->>Scanner: Merged PR data + review summary
+    end
+
+    Scanner-->>Scan: []TrackedPR (state=merged)
+
+    rect rgb(134, 239, 172)
         Note over Scan,DB: Persist scan results
         Scan->>DB: INSERT scan_runs (completed)
         Scan->>DB: INSERT tracked_prs
@@ -111,7 +123,7 @@ sequenceDiagram
         Scan->>DB: UPSERT my_review_status
     end
 
-    rect rgb(252, 231, 243)
+    rect rgb(249, 168, 212)
         Note over Scan,LLM: Async LLM worker (background)
         Scan->>DB: Poll rows with llm_status = 'pending'
         Scan->>GH: Fetch PR files (for diff context)
@@ -126,7 +138,7 @@ sequenceDiagram
     API->>DB: Query latest completed scan
     DB-->>API: Results
     API-->>Dash: JSON responses
-    Dash-->>User: Render digest cards + PR list + detail views
+    Dash-->>User: Render digest cards + PR list / Kanban board + detail views
 ```
 
 ## Package Structure
@@ -148,8 +160,8 @@ pr-scout/
 │   │   ├── client.go        ← SQLite/PostgreSQL connect + golang-migrate
 │   │   └── migrations/      ← Embedded SQL migrations (4 versions)
 │   ├── github/
-│   │   ├── client.go        ← go-github OAuth2 client wrapper
-│   │   ├── scanner.go       ← Per-repo PR scanning, review/comment collection
+│   │   ├── client.go        ← go-github OAuth2 client wrapper + ListRecentlyMergedPRs
+│   │   ├── scanner.go       ← Per-repo PR scanning, merged PR scanning
 │   │   ├── tracker.go       ← MyReviewStatus computation (post-scan)
 │   │   ├── coderabbit.go    ← CodeRabbit bot comment filtering + summarization
 │   │   └── graphql.go       ← Direct GraphQL for thread resolution counts
@@ -159,17 +171,27 @@ pr-scout/
 │   ├── models/
 │   │   └── *.go             ← TrackedPR, ReviewComment, ScanRun, CIStatus, etc.
 │   └── services/
-│       ├── scan_service.go  ← RunScan orchestration, LLM worker loop
+│       ├── scan_service.go  ← RunScan orchestration, merged PR scanning, LLM worker
 │       ├── pr_service.go    ← Read APIs (list/get PRs from latest scan)
 │       └── digest_service.go← Aggregate stats for digest endpoint
 ├── web/dashboard/
 │   └── src/
 │       ├── App.tsx           ← React Router (/, /prs/:id)
-│       ├── pages/            ← DashboardPage, PRDetailPage
-│       ├── components/       ← digest/, pr/, review/, shared/
+│       ├── pages/            ← DashboardPage (list + Kanban board), PRDetailPage
+│       ├── components/
+│       │   ├── board/        ← BoardView, BoardColumn, BoardCard (Kanban)
+│       │   ├── digest/       ← DigestCards
+│       │   ├── pr/           ← PRCard, PRList, PRFilters, PRChips (shared chips)
+│       │   ├── review/       ← ReviewStatusBadge
+│       │   └── shared/       ← Reusable UI components
+│       ├── hooks/
+│       │   └── useBoardColumns.ts  ← Kanban column grouping, sorting, aggregates
+│       ├── utils/
+│       │   ├── parseJson.ts        ← Safe JSON parsing
+│       │   └── mergeReadiness.ts   ← isMergeReady, getMergeBlockers
 │       ├── services/api.ts   ← Axios client to /api/v1
 │       ├── types/index.ts    ← TypeScript interfaces
-│       └── theme/index.ts    ← MUI theme
+│       └── theme/index.ts    ← MUI theme (light/dark)
 ├── deploy/config/
 │   ├── pr-scout.yaml         ← Main configuration
 │   └── .env                  ← Secrets (gitignored)

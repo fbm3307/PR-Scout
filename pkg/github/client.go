@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	gh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
@@ -89,6 +90,45 @@ func (c *Client) ListOpenPRs(ctx context.Context, repo string) ([]*gh.PullReques
 	}
 
 	return allPRs, nil
+}
+
+// ListRecentlyMergedPRs returns PRs that were merged after `since`.
+// It fetches closed PRs sorted by most recently updated and stops
+// paginating once it reaches PRs older than `since`.
+func (c *Client) ListRecentlyMergedPRs(ctx context.Context, repo string, since time.Time) ([]*gh.PullRequest, error) {
+	var merged []*gh.PullRequest
+	opts := &gh.PullRequestListOptions{
+		State:       "closed",
+		Sort:        "updated",
+		Direction:   "desc",
+		ListOptions: gh.ListOptions{PerPage: 50},
+	}
+
+	for {
+		prs, resp, err := c.client.PullRequests.List(ctx, c.org, repo, opts)
+		if err != nil {
+			return nil, fmt.Errorf("list merged PRs for %s/%s: %w", c.org, repo, err)
+		}
+
+		done := false
+		for _, pr := range prs {
+			if pr.GetUpdatedAt().Time.Before(since) {
+				done = true
+				break
+			}
+			mergedAt := pr.GetMergedAt()
+			if !mergedAt.IsZero() && mergedAt.Time.After(since) {
+				merged = append(merged, pr)
+			}
+		}
+
+		if done || resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return merged, nil
 }
 
 // GetPRFiles returns the list of files changed in a PR.

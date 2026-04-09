@@ -5,10 +5,13 @@ Daily PR review agent for the [codeready-toolchain](https://github.com/codeready
 ## Features
 
 - **Org-wide PR scanning** — scans all repos in the GitHub org on a daily schedule
+- **Kanban review board** — visual board with columns for Not Reviewed, Needs Attention, Waiting, Approved, and Recently Merged PRs. Toggle between board and list views; preference persists across sessions.
+- **Merge-readiness detection** — composite signal (CI green + required checks + approvals + no changes requested + CodeRabbit clear) with a green border on merge-ready cards and blockers shown on hover
+- **Recently merged PR tracking** — merged PRs from the last 7 days appear on the board with "MERGED" and "You approved" / "You reviewed" chips so you can close the review loop
 - **AI review guidance** — generates PR summaries, key review areas, and risk notes via Anthropic Claude (Vertex AI)
 - **CodeRabbit integration** — parses and surfaces CodeRabbit bot review comments
 - **Review tracking** — monitors your review comments: were they addressed? new commits since your review? PR merged/closed?
-- **Web dashboard** — React + MUI dashboard showing digest stats, filterable PR list, and detailed PR views
+- **Web dashboard** — React + MUI dashboard showing digest stats, filterable PR list, detailed PR views, and Kanban board
 - **Dual database support** — SQLite for local use, PostgreSQL for shared deployments
 
 ## Quick Start
@@ -96,7 +99,9 @@ Go Backend (Echo v5, :8080)
 React Dashboard (Vite, :5173)
 └── web/dashboard/src/
     ├── pages/      — DashboardPage, PRDetailPage
-    ├── components/ — digest/, pr/, review/, shared/
+    ├── components/ — digest/, pr/, board/, review/, shared/
+    ├── hooks/      — useBoardColumns (Kanban grouping/sorting)
+    ├── utils/      — parseJson, mergeReadiness
     ├── services/   — API client
     └── types/      — TypeScript interfaces
 ```

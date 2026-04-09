@@ -4,7 +4,7 @@ This document provides an in-depth look at how PR Scout works under the hood —
 
 ## Overview
 
-PR Scout is a daily PR review agent for the [codeready-toolchain](https://github.com/codeready-toolchain) GitHub organization. It scans all repositories for open pull requests, generates AI-powered review guidance via Anthropic Claude on Google Vertex AI, integrates CodeRabbit findings, and tracks your review comment lifecycle — all surfaced through a React + MUI web dashboard.
+PR Scout is a daily PR review agent for the [codeready-toolchain](https://github.com/codeready-toolchain) GitHub organization. It scans all repositories for open pull requests and recently merged PRs, generates AI-powered review guidance via Anthropic Claude on Google Vertex AI, integrates CodeRabbit findings, and tracks your review comment lifecycle — all surfaced through a React + MUI web dashboard with a Kanban board view.
 
 ## Tech Stack
 
@@ -45,9 +45,15 @@ The scan is the core operation. It can be triggered three ways:
    - If new commits were pushed after your last review, it's flagged as needing re-review.
    - Unresolved comment counts are attached.
 
-5. **Persistence** — All `tracked_prs`, `review_comments`, and `my_review_status` rows are written to the database. The scan is marked `completed` with final counts.
+5. **Recently merged PR scanning** — After open PRs are scanned, the scanner fetches PRs merged in the last **7 days** from each repo via `ListRecentlyMergedPRs` (uses GitHub's list-PRs API with `state=closed`, filtered by `merged_at`). Merged PRs get a lightweight scan:
+   - **Review summary** — Human review summary is fetched to show who approved.
+   - **Your review status** — `MyReviewStatus` is captured so the board can show "You approved" / "You reviewed" chips.
+   - **Skipped** — File diffs, CI checks, CodeRabbit analysis, and LLM processing are skipped since the PR is already merged.
+   - Merged PRs are stored with `state = "merged"` and `llm_status = "skipped"`.
 
-6. **LLM analysis (async)** — A background goroutine (`llmWorkerLoop`) continuously polls for PRs with `llm_status = 'pending'`. For each:
+6. **Persistence** — All `tracked_prs`, `review_comments`, and `my_review_status` rows are written to the database. The scan is marked `completed` with final counts.
+
+7. **LLM analysis (async)** — A background goroutine (`llmWorkerLoop`) continuously polls for PRs with `llm_status = 'pending'`. For each:
    - PR files are re-fetched from GitHub to get diff content.
    - The diff is truncated to ~30,000 characters to fit within the LLM context window.
    - `AnalyzePR` sends the diff + PR metadata to Claude via the Anthropic SDK.
@@ -218,6 +224,54 @@ PR Scout is designed to run continuously as a server, with scans triggered exter
 0 8 * * * curl -s -X POST http://localhost:8080/api/v1/scan
 ```
 
+## Kanban Board
+
+The dashboard supports two view modes — a traditional **list view** and a **Kanban board** — toggled via a button group in the tabs row. The selected mode is persisted to `localStorage`.
+
+### Board columns
+
+The board groups non-authored PRs (`!is_my_pr`) into five columns based on review status:
+
+| Column | Match criteria | Sort order |
+|--------|---------------|------------|
+| **Not Reviewed** | No `my_review` record, state is not `merged` | Newest first |
+| **Needs Attention** | `my_review.status === 'needs_attention'` | Most commits-after-review first |
+| **Waiting** | `my_review.status === 'waiting'` | Oldest first |
+| **Approved** | `my_review.status === 'approved'` | Most recently updated first |
+| **Recently Merged** | `state === 'merged'` | Most recently merged first |
+
+Column headers show a count chip and a green "N ready" chip when merge-ready PRs exist.
+
+### Board cards
+
+Each card is a compact `BoardCard` component showing:
+- Repo name, PR number, and "NEW" or "MERGED" chip
+- Title (2-line CSS clamp)
+- Status chips: human review, required checks, CI, CodeRabbit (reused from shared `PRChips`)
+- Author, age, and `+additions -deletions`
+- For merged PRs: "You approved" (green) or "You reviewed" (neutral) chip when you participated
+
+### Merge-readiness detection
+
+A PR is considered merge-ready when all conditions are met:
+- CI overall status is `success`
+- All required checks pass (or no required checks configured)
+- At least one human approval
+- No outstanding change requests
+- All CodeRabbit comments resolved (or no CodeRabbit comments)
+
+Merge-ready cards get a **4px green left border** (`success.main`). Non-ready cards show **merge blockers on hover** (e.g., "CI failing", "No approvals", "2 unresolved CodeRabbit comments").
+
+Merged cards get a **4px blue left border** (`info.main`) instead.
+
+### View mode interactions
+
+- The "My Review Status" filter is hidden in board mode (the board's columns serve the same purpose).
+- Switching to board mode clears any active review status filter.
+- The "My PRs" tab always shows the list view; the board toggle is disabled on that tab.
+- The list view filters out merged PRs (they only appear on the board).
+- The `Container` widens to `maxWidth="xl"` in board mode and uses `overflow: hidden` to contain the scrollable columns within the viewport.
+
 ## Design Decisions
 
 | Decision | Rationale |
@@ -228,3 +282,7 @@ PR Scout is designed to run continuously as a server, with scans triggered exter
 | **Diff truncation** | PR diffs are capped at ~30k characters before sending to Claude. This balances context quality with token limits and cost. |
 | **Reuse prior AI text** | If a PR hasn't changed since the last scan, its AI analysis is carried forward. This saves LLM calls and reduces latency. |
 | **CodeRabbit as complement** | Rather than replacing CodeRabbit, PR Scout surfaces its findings alongside its own AI analysis, giving reviewers a unified view. |
+| **Kanban board is reviewer-centric** | The board groups PRs by your review status, not by repo or author. Authored PRs are excluded since the "My PRs" tab handles those. |
+| **Lightweight merged PR scan** | Merged PRs skip CI, CodeRabbit, files, and LLM analysis — only review summary and your review status are fetched. This minimizes GitHub API calls while providing enough data for the board. |
+| **Client-side merge-readiness** | Merge-readiness is computed in the browser from existing API data (CI status, review summary, CodeRabbit counts) rather than adding a backend field, keeping the API unchanged. |
+| **7-day merged window** | Recently merged PRs older than 7 days are dropped from the board to keep the column focused and scannable. |

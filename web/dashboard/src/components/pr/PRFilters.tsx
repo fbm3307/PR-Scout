@@ -16,6 +16,7 @@ interface PRFiltersProps {
   newOnly: boolean;
   onNewOnlyChange: (value: boolean) => void;
   repos: string[];
+  viewMode?: 'list' | 'board';
 }
 
 export function PRFilters({
@@ -25,6 +26,7 @@ export function PRFilters({
   coderabbitStatus, onCodeRabbitStatusChange,
   newOnly, onNewOnlyChange,
   repos,
+  viewMode,
 }: PRFiltersProps) {
   return (
     <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -42,20 +44,22 @@ export function PRFilters({
         ))}
       </TextField>
 
-      <TextField
-        select
-        label="My Review Status"
-        value={reviewStatus}
-        onChange={(e) => onReviewStatusChange(e.target.value)}
-        size="small"
-        sx={{ minWidth: 180 }}
-      >
-        <MenuItem value="">All</MenuItem>
-        <MenuItem value="needs_attention">Needs Attention</MenuItem>
-        <MenuItem value="waiting">Waiting</MenuItem>
-        <MenuItem value="approved">Approved</MenuItem>
-        <MenuItem value="not_reviewed">Not Reviewed</MenuItem>
-      </TextField>
+      {viewMode !== 'board' && (
+        <TextField
+          select
+          label="My Review Status"
+          value={reviewStatus}
+          onChange={(e) => onReviewStatusChange(e.target.value)}
+          size="small"
+          sx={{ minWidth: 180 }}
+        >
+          <MenuItem value="">All</MenuItem>
+          <MenuItem value="needs_attention">Needs Attention</MenuItem>
+          <MenuItem value="waiting">Waiting</MenuItem>
+          <MenuItem value="approved">Approved</MenuItem>
+          <MenuItem value="not_reviewed">Not Reviewed</MenuItem>
+        </TextField>
+      )}
 
       <TextField
         select

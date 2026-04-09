@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	gh "github.com/google/go-github/v68/github"
 
@@ -48,6 +49,62 @@ func (s *Scanner) ScanRepo(ctx context.Context, repo string) ([]ScanResult, erro
 	}
 
 	return results, nil
+}
+
+// ScanMergedRepo returns recently merged PRs for a repo with lightweight metadata.
+// Skips CI, CodeRabbit, and file-level analysis since the PR is already merged.
+func (s *Scanner) ScanMergedRepo(ctx context.Context, repo string, since time.Time) ([]ScanResult, error) {
+	prs, err := s.client.ListRecentlyMergedPRs(ctx, repo, since)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []ScanResult
+	for _, pr := range prs {
+		result, err := s.scanMergedPR(ctx, repo, pr)
+		if err != nil {
+			s.logger.Warn("Failed to scan merged PR, skipping",
+				"repo", repo, "pr", pr.GetNumber(), "error", err)
+			continue
+		}
+		results = append(results, *result)
+	}
+
+	return results, nil
+}
+
+func (s *Scanner) scanMergedPR(ctx context.Context, repo string, pr *gh.PullRequest) (*ScanResult, error) {
+	var labelNames []string
+	for _, l := range pr.Labels {
+		labelNames = append(labelNames, l.GetName())
+	}
+
+	tracked := models.TrackedPR{
+		Repo:              repo,
+		PRNumber:          pr.GetNumber(),
+		Title:             pr.GetTitle(),
+		Author:            pr.GetUser().GetLogin(),
+		URL:               pr.GetHTMLURL(),
+		State:             "merged",
+		HeadBranch:        pr.GetHead().GetRef(),
+		BaseBranch:        pr.GetBase().GetRef(),
+		CreatedAt:         pr.GetCreatedAt().Time,
+		UpdatedAt:         pr.GetMergedAt().Time,
+		Labels:            strings.Join(labelNames, ","),
+		IsMyPR:            strings.EqualFold(pr.GetUser().GetLogin(), s.client.Username()),
+		Additions:         pr.GetAdditions(),
+		Deletions:         pr.GetDeletions(),
+		ChangedFilesCount: pr.GetChangedFiles(),
+	}
+
+	// Fetch review info: review summary for approval display + my review status
+	_, myStatus, humanSummary, _ := s.fetchReviewInfo(ctx, repo, pr.GetNumber(), tracked.Author)
+	tracked.HumanReviewSummary = humanSummary.ToJSON()
+
+	return &ScanResult{
+		PR:       tracked,
+		MyReview: myStatus,
+	}, nil
 }
 
 func (s *Scanner) scanPR(ctx context.Context, repo string, pr *gh.PullRequest) (*ScanResult, error) {

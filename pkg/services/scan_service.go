@@ -262,6 +262,46 @@ func (s *ScanService) RunScan(ctx context.Context, ghClient *github.Client) (*mo
 		}
 	}
 
+	// Scan recently merged PRs (last 7 days) across all repos
+	mergedSince := time.Now().UTC().AddDate(0, 0, -7)
+	mergedCh := make(chan repoResult, len(repoNames))
+	var mergedWG sync.WaitGroup
+
+	for _, repoName := range repoNames {
+		mergedWG.Add(1)
+		go func(repo string) {
+			defer mergedWG.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			results, err := s.scanner.ScanMergedRepo(ctx, repo, mergedSince)
+			if err != nil {
+				s.logger.Warn("Failed to scan merged PRs, skipping", "repo", repo, "error", err)
+				return
+			}
+			if len(results) > 0 {
+				mergedCh <- repoResult{results: results, repo: repo}
+			}
+		}(repoName)
+	}
+
+	go func() {
+		mergedWG.Wait()
+		close(mergedCh)
+	}()
+
+	for rr := range mergedCh {
+		for _, result := range rr.results {
+			scan.PRsFound++
+			result.PR.ScanID = scan.ID
+			result.PR.LLMStatus = "skipped"
+
+			if err := s.persistResult(result); err != nil {
+				s.logger.Warn("Failed to persist merged PR", "repo", rr.repo, "pr", result.PR.PRNumber, "error", err)
+			}
+		}
+	}
+
 	s.completeScan(scan)
 	s.logger.Info("Scan completed",
 		"repos", scan.ReposScanned, "prs", scan.PRsFound, "new", scan.NewPRs)
