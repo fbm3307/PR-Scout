@@ -93,44 +93,34 @@ sequenceDiagram
     User->>API: POST /api/v1/scan
     API->>Scan: RunScan()
 
-    rect rgb(147, 197, 253)
-        Note over Scan,GH: Parallel repo scanning (up to 5 concurrent)
-        Scan->>Scanner: ScanRepo (per repo)
-        Scanner->>GH: List open PRs
-        Scanner->>GH: Fetch files, reviews, comments
-        Scanner->>GH: Fetch check runs + branch protection
-        Scanner->>GH: GraphQL — CodeRabbit thread resolution
-        GH-->>Scanner: PR data + review threads + CI status
-    end
-
+    Note over Scan,GH: ── Parallel repo scanning (up to 5 concurrent) ──
+    Scan->>Scanner: ScanRepo (per repo)
+    Scanner->>GH: List open PRs
+    Scanner->>GH: Fetch files, reviews, comments
+    Scanner->>GH: Fetch check runs + branch protection
+    Scanner->>GH: GraphQL — CodeRabbit thread resolution
+    GH-->>Scanner: PR data + review threads + CI status
     Scanner-->>Scan: []TrackedPR + ReviewComments
 
-    rect rgb(253, 224, 137)
-        Note over Scan,GH: Recently merged PRs (last 7 days)
-        Scan->>Scanner: ScanMergedRepo (per repo)
-        Scanner->>GH: List closed PRs (merged_at > 7 days ago)
-        Scanner->>GH: Fetch reviews (lightweight)
-        GH-->>Scanner: Merged PR data + review summary
-    end
-
+    Note over Scan,GH: ── Recently merged PRs (last 7 days) ──
+    Scan->>Scanner: ScanMergedRepo (per repo)
+    Scanner->>GH: List closed PRs (merged_at > 7 days ago)
+    Scanner->>GH: Fetch reviews (lightweight)
+    GH-->>Scanner: Merged PR data + review summary
     Scanner-->>Scan: []TrackedPR (state=merged)
 
-    rect rgb(134, 239, 172)
-        Note over Scan,DB: Persist scan results
-        Scan->>DB: INSERT scan_runs (completed)
-        Scan->>DB: INSERT tracked_prs
-        Scan->>DB: INSERT review_comments
-        Scan->>DB: UPSERT my_review_status
-    end
+    Note over Scan,DB: ── Persist scan results ──
+    Scan->>DB: INSERT scan_runs (completed)
+    Scan->>DB: INSERT tracked_prs
+    Scan->>DB: INSERT review_comments
+    Scan->>DB: UPSERT my_review_status
 
-    rect rgb(249, 168, 212)
-        Note over Scan,LLM: Async LLM worker (background)
-        Scan->>DB: Poll rows with llm_status = 'pending'
-        Scan->>GH: Fetch PR files (for diff context)
-        Scan->>LLM: AnalyzePR (diff + metadata)
-        LLM-->>Scan: AI summary, review hints, risk notes
-        Scan->>DB: UPDATE ai_summary, review_hints, risk_notes
-    end
+    Note over Scan,LLM: ── Async LLM worker (background) ──
+    Scan->>DB: Poll rows with llm_status = 'pending'
+    Scan->>GH: Fetch PR files (for diff context)
+    Scan->>LLM: AnalyzePR (diff + metadata)
+    LLM-->>Scan: AI summary, review hints, risk notes
+    Scan->>DB: UPDATE ai_summary, review_hints, risk_notes
 
     User->>Dash: Open dashboard
     Dash->>API: GET /api/v1/digest
