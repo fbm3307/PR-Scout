@@ -1,12 +1,24 @@
 import Chip from '@mui/material/Chip';
 import Tooltip from '@mui/material/Tooltip';
+import Avatar from '@mui/material/Avatar';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import PersonIcon from '@mui/icons-material/Person';
 import ShieldIcon from '@mui/icons-material/Shield';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import type { HumanReviewSummary, CIStatus } from '../../types';
+
+const CODERABBIT_AVATAR = 'https://github.com/coderabbitai.png?size=32';
+
+function CodeRabbitIcon() {
+  return (
+    <Avatar
+      src={CODERABBIT_AVATAR}
+      alt="CodeRabbit"
+      sx={{ width: 14, height: 14 }}
+    />
+  );
+}
 
 export function HumanReviewChip({ summary }: { summary: HumanReviewSummary }) {
   if (summary.total_reviewers === 0) return null;
@@ -113,7 +125,7 @@ export function CodeRabbitChip({ total, resolved }: { total: number; resolved: n
   return (
     <Tooltip title={`${resolved} of ${total} CodeRabbit comments resolved`} arrow>
       <Chip
-        icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+        icon={<CodeRabbitIcon />}
         label={`CodeRabbit ${resolved}/${total}`}
         size="small"
         color={color}
@@ -128,7 +140,7 @@ export function CodeRabbitSummaryChip({ summary }: { summary: string }) {
   return (
     <Tooltip title={summary} arrow>
       <Chip
-        icon={<SmartToyIcon sx={{ fontSize: 14 }} />}
+        icon={<CodeRabbitIcon />}
         label="CodeRabbit"
         size="small"
         variant="outlined"

@@ -8,14 +8,28 @@ import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
+import Avatar from '@mui/material/Avatar';
+import AvatarGroup from '@mui/material/AvatarGroup';
 import MergeIcon from '@mui/icons-material/MergeType';
 import CheckIcon from '@mui/icons-material/Check';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { formatDistanceToNow } from 'date-fns';
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import HistoryIcon from '@mui/icons-material/History';
+import { formatDistanceToNow, subDays } from 'date-fns';
 import { parseJSON } from '../../utils/parseJson.ts';
+import { ghAvatar } from '../../utils/ghAvatar.ts';
 import { isMergeReady, getMergeBlockers } from '../../utils/mergeReadiness.ts';
 import { HumanReviewChip, CIStatusChip, RequiredChecksChip, CodeRabbitChip, CodeRabbitSummaryChip } from '../pr/PRChips.tsx';
 import type { PRWithReview, HumanReviewSummary, CIStatus } from '../../types';
+
+function getReviewerUsernames(summary: HumanReviewSummary | null): string[] {
+  if (!summary) return [];
+  const set = new Set<string>();
+  for (const u of summary.approved_by ?? []) set.add(u);
+  for (const u of summary.changes_requested_by ?? []) set.add(u);
+  for (const u of summary.commented_by ?? []) set.add(u);
+  return [...set];
+}
 
 interface BoardCardProps {
   pr: PRWithReview;
@@ -34,6 +48,9 @@ export function BoardCard({ pr }: BoardCardProps) {
     [pr.ci_status],
   );
 
+  const reviewerUsernames = useMemo(() => getReviewerUsernames(reviewSummary), [reviewSummary]);
+
+  const isStale = !isMerged && new Date(pr.updated_at) < subDays(new Date(), 90);
   const mergeReady = !isMerged && isMergeReady(pr);
   const tooltipText = isMerged
     ? `Merged ${formatDistanceToNow(new Date(pr.updated_at), { addSuffix: true })}`
@@ -44,7 +61,7 @@ export function BoardCard({ pr }: BoardCardProps) {
   const hasCodeRabbit = pr.coderabbit_total > 0 || !!pr.coderabbit_summary;
   const hasStatusRow = reviewSummary?.total_reviewers || ciStatus?.total_checks || hasCodeRabbit;
 
-  const borderColor = isMerged ? 'info.main' : mergeReady ? 'success.main' : undefined;
+  const borderColor = isMerged ? 'info.main' : pr.is_draft ? 'text.disabled' : isStale ? 'warning.main' : mergeReady ? 'success.main' : undefined;
 
   return (
     <Tooltip title={tooltipText} arrow placement="right" enterDelay={400}>
@@ -54,6 +71,7 @@ export function BoardCard({ pr }: BoardCardProps) {
           mb: 1,
           borderLeft: borderColor ? '4px solid' : undefined,
           borderLeftColor: borderColor,
+          opacity: pr.is_draft ? 0.65 : 1,
         }}
       >
         <CardActionArea onClick={() => navigate(`/prs/${pr.id}`)}>
@@ -65,6 +83,24 @@ export function BoardCard({ pr }: BoardCardProps) {
               <Typography variant="caption" color="text.secondary">
                 #{pr.pr_number}
               </Typography>
+              {pr.is_draft && (
+                <Chip
+                  icon={<EditNoteIcon sx={{ fontSize: 12 }} />}
+                  label="DRAFT"
+                  size="small"
+                  sx={{ height: 18, fontSize: '0.65rem', bgcolor: 'action.selected' }}
+                />
+              )}
+              {isStale && (
+                <Chip
+                  icon={<HistoryIcon sx={{ fontSize: 12 }} />}
+                  label="STALE"
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  sx={{ height: 18, fontSize: '0.65rem' }}
+                />
+              )}
               {isMerged && (
                 <Chip
                   icon={<MergeIcon sx={{ fontSize: 12 }} />}
@@ -128,10 +164,28 @@ export function BoardCard({ pr }: BoardCardProps) {
             )}
 
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary" noWrap>
-                {pr.author}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap>
+              <Tooltip title={pr.author} arrow>
+                <Avatar
+                  src={ghAvatar(pr.author)}
+                  alt={pr.author}
+                  sx={{ width: 24, height: 24, fontSize: '0.7rem' }}
+                />
+              </Tooltip>
+              {reviewerUsernames.length > 0 && (
+                <AvatarGroup
+                  max={3}
+                  sx={{
+                    '& .MuiAvatar-root': { width: 20, height: 20, fontSize: '0.6rem', border: '1px solid', borderColor: 'background.paper' },
+                  }}
+                >
+                  {reviewerUsernames.map((u) => (
+                    <Tooltip key={u} title={u} arrow>
+                      <Avatar src={ghAvatar(u, 40)} alt={u} />
+                    </Tooltip>
+                  ))}
+                </AvatarGroup>
+              )}
+              <Typography variant="caption" color="text.secondary" noWrap sx={{ ml: 0.25 }}>
                 {isMerged ? `merged ${formatDistanceToNow(new Date(pr.updated_at), { addSuffix: true })}` : formatDistanceToNow(new Date(pr.created_at), { addSuffix: true })}
               </Typography>
               <Typography variant="caption" color="text.secondary" noWrap>

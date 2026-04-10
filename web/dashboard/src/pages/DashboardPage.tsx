@@ -124,12 +124,42 @@ export function DashboardPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
-      <AppBar position="static" color="default" elevation={1}>
-        <Toolbar>
+      <AppBar position="static" color="default" elevation={isBoardMode ? 0 : 1} sx={isBoardMode ? { borderBottom: 1, borderColor: 'divider' } : undefined}>
+        <Toolbar variant={isBoardMode ? 'dense' : 'regular'}>
           <RadarIcon sx={{ mr: 1 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             PR Scout
           </Typography>
+
+          {isBoardMode && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mr: 2 }}>
+              <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 36 }}>
+                <Tab
+                  label={`Review Board (${reviewPrs.length})`}
+                  sx={{ minHeight: 36, py: 0 }}
+                />
+                <Tab label={`My PRs (${myPrs.length})`} sx={{ minHeight: 36, py: 0 }} />
+              </Tabs>
+              <ToggleButtonGroup
+                value={viewMode}
+                exclusive
+                onChange={handleViewModeChange}
+                size="small"
+                sx={{ height: 28 }}
+              >
+                <ToggleButton value="list" sx={{ px: 0.75 }}>
+                  <ViewListIcon sx={{ fontSize: 16 }} />
+                </ToggleButton>
+                <ToggleButton value="board" sx={{ px: 0.75 }}>
+                  <DashboardIcon sx={{ fontSize: 16 }} />
+                </ToggleButton>
+              </ToggleButtonGroup>
+              <Typography variant="body2" color="text.secondary">
+                {shownCount} shown
+              </Typography>
+            </Box>
+          )}
+
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
@@ -143,65 +173,71 @@ export function DashboardPage() {
       </AppBar>
 
       <Container
-        maxWidth={isBoardMode ? 'xl' : 'lg'}
+        maxWidth={isBoardMode ? false : 'lg'}
         sx={{
-          mt: 2,
+          mt: isBoardMode ? 0 : 2,
+          px: isBoardMode ? 2 : undefined,
           flex: 1,
+          minHeight: 0,
           overflow: isBoardMode ? 'hidden' : 'auto',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <DigestCards digest={digest} />
+        {!isBoardMode && <DigestCards digest={digest} />}
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 36 }}>
-            <Tab
-              label={isBoardMode ? `Review Board (${reviewPrs.length})` : `All PRs (${openPrs.length})`}
-              sx={{ minHeight: 36, py: 0 }}
-            />
-            <Tab label={`My PRs (${myPrs.length})`} sx={{ minHeight: 36, py: 0 }} />
-          </Tabs>
+        {!isBoardMode && (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 36 }}>
+              <Tab
+                label={`All PRs (${openPrs.length})`}
+                sx={{ minHeight: 36, py: 0 }}
+              />
+              <Tab label={`My PRs (${myPrs.length})`} sx={{ minHeight: 36, py: 0 }} />
+            </Tabs>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={handleViewModeChange}
-              size="small"
-              sx={{ height: 30 }}
-            >
-              <ToggleButton value="list" sx={{ px: 1 }}>
-                <ViewListIcon sx={{ fontSize: 18 }} />
-              </ToggleButton>
-              <Tooltip title={tab !== 0 ? 'Board view available for All PRs' : ''}>
-                <span>
-                  <ToggleButton value="board" sx={{ px: 1 }} disabled={tab !== 0}>
-                    <DashboardIcon sx={{ fontSize: 18 }} />
-                  </ToggleButton>
-                </span>
-              </Tooltip>
-            </ToggleButtonGroup>
-            <Typography variant="body2" color="text.secondary">
-              {shownCount} shown
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ToggleButtonGroup
+                value={viewMode}
+                exclusive
+                onChange={handleViewModeChange}
+                size="small"
+                sx={{ height: 30 }}
+              >
+                <ToggleButton value="list" sx={{ px: 1 }}>
+                  <ViewListIcon sx={{ fontSize: 18 }} />
+                </ToggleButton>
+                <Tooltip title={tab !== 0 ? 'Board view available for All PRs' : ''}>
+                  <span>
+                    <ToggleButton value="board" sx={{ px: 1 }} disabled={tab !== 0}>
+                      <DashboardIcon sx={{ fontSize: 18 }} />
+                    </ToggleButton>
+                  </span>
+                </Tooltip>
+              </ToggleButtonGroup>
+              <Typography variant="body2" color="text.secondary">
+                {shownCount} shown
+              </Typography>
+            </Box>
           </Box>
-        </Box>
+        )}
 
-        <PRFilters
-          repo={repoFilter}
-          onRepoChange={setRepoFilter}
-          reviewStatus={reviewStatusFilter}
-          onReviewStatusChange={setReviewStatusFilter}
-          ciStatus={ciStatusFilter}
-          onCIStatusChange={setCIStatusFilter}
-          coderabbitStatus={coderabbitStatusFilter}
-          onCodeRabbitStatusChange={setCodeRabbitStatusFilter}
-          newOnly={newOnly}
-          onNewOnlyChange={setNewOnly}
-          repos={repos}
-          viewMode={isBoardMode ? 'board' : 'list'}
-        />
+        {!isBoardMode && (
+          <PRFilters
+            repo={repoFilter}
+            onRepoChange={setRepoFilter}
+            reviewStatus={reviewStatusFilter}
+            onReviewStatusChange={setReviewStatusFilter}
+            ciStatus={ciStatusFilter}
+            onCIStatusChange={setCIStatusFilter}
+            coderabbitStatus={coderabbitStatusFilter}
+            onCodeRabbitStatusChange={setCodeRabbitStatusFilter}
+            newOnly={newOnly}
+            onNewOnlyChange={setNewOnly}
+            repos={repos}
+            viewMode="list"
+          />
+        )}
 
         {isBoardMode ? (
           <BoardView columns={columns} loading={loading} />

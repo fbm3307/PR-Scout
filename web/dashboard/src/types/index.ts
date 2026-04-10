@@ -45,6 +45,7 @@ export interface TrackedPR {
   labels?: string;
   is_new: boolean;
   is_my_pr: boolean;
+  is_draft: boolean;
   ai_summary?: string;
   review_hints?: string;
   risk_notes?: string;
