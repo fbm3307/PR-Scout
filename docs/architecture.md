@@ -178,7 +178,8 @@ pr-scout/
 │       │   └── useBoardColumns.ts  ← Kanban column grouping, sorting, aggregates
 │       ├── utils/
 │       │   ├── parseJson.ts        ← Safe JSON parsing
-│       │   └── mergeReadiness.ts   ← isMergeReady, getMergeBlockers
+│       │   ├── mergeReadiness.ts   ← isMergeReady, getMergeBlockers
+│       │   └── ghAvatar.ts         ← GitHub avatar URL helper (handles bot accounts)
 │       ├── services/api.ts   ← Axios client to /api/v1
 │       ├── types/index.ts    ← TypeScript interfaces
 │       └── theme/index.ts    ← MUI theme (light/dark)

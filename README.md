@@ -2,12 +2,27 @@
 
 Daily PR review agent for the [codeready-toolchain](https://github.com/codeready-toolchain) GitHub org. Scans all repositories for open pull requests, generates AI-powered review guidance, integrates CodeRabbit findings, and tracks your review comment lifecycle.
 
+## Demo
+
+[Watch the demo screencast](docs/assets/pr-scout-demo.mp4)
+
+### Kanban Board
+
+![Kanban board view](docs/assets/board-view.png)
+
+### Stale PRs
+
+![Board view with stale PRs expanded](docs/assets/board-view-stale.png)
+
 ## Features
 
 - **Org-wide PR scanning** — scans all repos in the GitHub org on a daily schedule
-- **Kanban review board** — visual board with columns for Not Reviewed, Needs Attention, Waiting, Approved, and Recently Merged PRs. Toggle between board and list views; preference persists across sessions.
+- **Kanban review board** — visual board with columns for Not Reviewed, Needs Attention, Waiting, Approved, and Recently Merged PRs. Toggle between board and list views; preference persists across sessions. Full-width layout with per-column scrolling.
 - **Merge-readiness detection** — composite signal (CI green + required checks + approvals + no changes requested + CodeRabbit clear) with a green border on merge-ready cards and blockers shown on hover
-- **Recently merged PR tracking** — merged PRs from the last 7 days appear on the board with "MERGED" and "You approved" / "You reviewed" chips so you can close the review loop
+- **Recently merged PR tracking** — merged PRs from the last 7 days appear on the board with "MERGED" and "You approved" / "You reviewed" chips; filterable by 1d / 3d / 7d
+- **Draft PR detection** — GitHub draft flag and WIP title prefix detection; draft cards show a "DRAFT" chip and dimmed appearance
+- **Stale PR detection** — PRs with no activity for 90+ days are grouped at the bottom of each column behind a collapsed expander, with a "STALE" warning chip
+- **GitHub avatars** — author and reviewer avatars on both board and list cards using GitHub's avatar endpoint (no backend changes needed); bot accounts like `dependabot[bot]` are handled automatically
 - **AI review guidance** — generates PR summaries, key review areas, and risk notes via Anthropic Claude (Vertex AI)
 - **CodeRabbit integration** — parses and surfaces CodeRabbit bot review comments
 - **Review tracking** — monitors your review comments: were they addressed? new commits since your review? PR merged/closed?
@@ -101,7 +116,7 @@ React Dashboard (Vite, :5173)
     ├── pages/      — DashboardPage, PRDetailPage
     ├── components/ — digest/, pr/, board/, review/, shared/
     ├── hooks/      — useBoardColumns (Kanban grouping/sorting)
-    ├── utils/      — parseJson, mergeReadiness
+    ├── utils/      — parseJson, mergeReadiness, ghAvatar
     ├── services/   — API client
     └── types/      — TypeScript interfaces
 ```

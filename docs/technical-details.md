@@ -245,11 +245,29 @@ Column headers show a count chip and a green "N ready" chip when merge-ready PRs
 ### Board cards
 
 Each card is a compact `BoardCard` component showing:
-- Repo name, PR number, and "NEW" or "MERGED" chip
+- Repo name, PR number, and status chips: "NEW", "DRAFT", "STALE", or "MERGED"
 - Title (2-line CSS clamp)
-- Status chips: human review, required checks, CI, CodeRabbit (reused from shared `PRChips`)
-- Author, age, and `+additions -deletions`
+- Status chips: human review, required checks, CI, CodeRabbit (reused from shared `PRChips`; CodeRabbit uses the actual CodeRabbit avatar icon)
+- Author avatar (24px GitHub avatar), reviewer avatar group (max 3, 20px), age, and `+additions -deletions`
 - For merged PRs: "You approved" (green) or "You reviewed" (neutral) chip when you participated
+- Draft PRs render at 65% opacity with a gray left border
+- Stale PRs (no activity for 90+ days) show a warning-colored "STALE" chip with an orange left border
+
+### Recently Merged column
+
+The "Recently Merged" column includes a **1d / 3d / 7d** toggle button group in its header to filter by merge recency. Defaults to 7d.
+
+### Stale PR handling
+
+In each open-PR column (Not Reviewed, Needs Attention, Waiting, Approved), PRs with `updated_at` older than 90 days are grouped at the bottom behind a collapsed "Show N stale" expander. The column header shows the active count with a muted "+N stale" suffix. This keeps the board focused on actionable PRs.
+
+### Draft PR handling
+
+PRs flagged as `is_draft` (from GitHub's draft status or WIP title prefixes) show a "DRAFT" chip, render at reduced opacity (65%), and have a gray left border. Draft status is detected in the backend scanner and stored in the `tracked_prs` table.
+
+### GitHub avatars
+
+Author and reviewer avatars are displayed on both board cards and list cards using GitHub's predictable avatar URL pattern (`https://github.com/{username}.png`). Bot accounts like `dependabot[bot]` are handled by stripping the `[bot]` suffix (e.g., `https://github.com/dependabot.png`). No backend or database changes were needed — the existing `author` field and `HumanReviewSummary` reviewer lists provide the usernames.
 
 ### Merge-readiness detection
 
@@ -270,7 +288,7 @@ Merged cards get a **4px blue left border** (`info.main`) instead.
 - Switching to board mode clears any active review status filter.
 - The "My PRs" tab always shows the list view; the board toggle is disabled on that tab.
 - The list view filters out merged PRs (they only appear on the board).
-- The `Container` widens to `maxWidth="xl"` in board mode and uses `overflow: hidden` to contain the scrollable columns within the viewport.
+- The `Container` uses `maxWidth={false}` (full width) in board mode with minimal padding and `overflow: hidden` to contain the scrollable columns within the viewport.
 
 ## Design Decisions
 
@@ -286,3 +304,6 @@ Merged cards get a **4px blue left border** (`info.main`) instead.
 | **Lightweight merged PR scan** | Merged PRs skip CI, CodeRabbit, files, and LLM analysis — only review summary and your review status are fetched. This minimizes GitHub API calls while providing enough data for the board. |
 | **Client-side merge-readiness** | Merge-readiness is computed in the browser from existing API data (CI status, review summary, CodeRabbit counts) rather than adding a backend field, keeping the API unchanged. |
 | **7-day merged window** | Recently merged PRs older than 7 days are dropped from the board to keep the column focused and scannable. |
+| **90-day stale cutoff** | PRs with no update in 90 days are collapsed at the bottom of each column. They're not hidden — just deprioritized behind an expander. |
+| **GitHub avatars without backend changes** | Avatar URLs are derived from usernames (`github.com/{user}.png`), avoiding additional API calls or database fields. Bot accounts are handled by stripping `[bot]`. |
+| **Draft/stale as visual indicators** | Draft and stale status are shown as chips and border colors rather than separate columns, keeping the board layout focused on review workflow. |
